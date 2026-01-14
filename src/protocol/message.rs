@@ -111,17 +111,19 @@ impl MessageHeader {
     /// # Safety
     /// Buffer harus berisi data valid dan aligned
     #[inline(always)]
-    pub unsafe fn from_bytes(buf: &[u8]) -> Option<&Self> { unsafe {
-        if buf.len() < HEADER_SIZE {
-            return None;
+    pub unsafe fn from_bytes(buf: &[u8]) -> Option<&Self> {
+        unsafe {
+            if buf.len() < HEADER_SIZE {
+                return None;
+            }
+            let header = &*(buf.as_ptr() as *const Self);
+            if header.is_valid() {
+                Some(header)
+            } else {
+                None
+            }
         }
-        let header = &*(buf.as_ptr() as *const Self);
-        if header.is_valid() {
-            Some(header)
-        } else {
-            None
-        }
-    }}
+    }
 
     /// Convert ke bytes (ZERO-COPY!)
     #[inline(always)]

@@ -237,8 +237,12 @@ impl ClientHandler {
 
         // Batch update stats (reduces atomic contention)
         if msg_count > 0 {
-            stats.messages_received.fetch_add(msg_count, Ordering::Relaxed);
-            stats.bytes_received.fetch_add(bytes_count, Ordering::Relaxed);
+            stats
+                .messages_received
+                .fetch_add(msg_count, Ordering::Relaxed);
+            stats
+                .bytes_received
+                .fetch_add(bytes_count, Ordering::Relaxed);
         }
 
         // Shift remaining data to front of buffer
@@ -456,14 +460,22 @@ fn run_server(config: ServerConfig) -> io::Result<()> {
 
         // Batch update stats (reduces atomic contention)
         if broadcast_count > 0 {
-            stats.messages_broadcast.fetch_add(broadcast_count, Ordering::Relaxed);
-            stats.bytes_sent.fetch_add(bytes_sent_count, Ordering::Relaxed);
+            stats
+                .messages_broadcast
+                .fetch_add(broadcast_count, Ordering::Relaxed);
+            stats
+                .bytes_sent
+                .fetch_add(bytes_sent_count, Ordering::Relaxed);
         }
         if dropped_count > 0 {
-            stats.messages_dropped.fetch_add(dropped_count, Ordering::Relaxed);
+            stats
+                .messages_dropped
+                .fetch_add(dropped_count, Ordering::Relaxed);
         }
         if error_count > 0 {
-            stats.broadcast_errors.fetch_add(error_count, Ordering::Relaxed);
+            stats
+                .broadcast_errors
+                .fetch_add(error_count, Ordering::Relaxed);
         }
 
         // === PHASE 4: Flush pending writes ===
