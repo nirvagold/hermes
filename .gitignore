@@ -1,0 +1,17 @@
+# Rust
+/target/
+
+# Benchmark artifacts
+*.dat
+hermes_bench.dat
+hermes_data.dat
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
