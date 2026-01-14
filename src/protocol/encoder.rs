@@ -71,7 +71,7 @@ impl Encoder {
     /// Encode batch of messages
     ///
     /// Format batch:
-    /// [BatchHeader][Msg1][Msg2]...[MsgN]
+    /// `[BatchHeader][Msg1][Msg2]...[MsgN]`
     #[inline(always)]
     pub fn encode_batch(
         &mut self,

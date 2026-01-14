@@ -6,7 +6,10 @@
 //! - Minimal sleep untuk low latency
 //!
 //! Usage:
-//!   cargo run --release --bin hermes_server [OPTIONS]
+//!
+//! ```text
+//! cargo run --release --bin hermes_server
+//! ```
 
 use std::collections::HashMap;
 use std::io::{self, Read, Write};

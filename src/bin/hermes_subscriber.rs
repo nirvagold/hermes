@@ -7,12 +7,16 @@
 //! - High-resolution timing via std::time::Instant (uses QueryPerformanceCounter on Windows)
 //! - Lock-free statistics collection
 //!
-//! Usage:
-//!   cargo run --release --bin hermes_subscriber -- [OPTIONS]
+//! # Usage
 //!
-//! Options:
-//!   --host <ADDR>     Server address (default: 127.0.0.1:9999)
-//!   --duration <SEC>  Test duration in seconds (default: 60)
+//! ```text
+//! cargo run --release --bin hermes_subscriber -- --host 127.0.0.1:9999 --duration 60
+//! ```
+//!
+//! # Options
+//!
+//! - `--host ADDR` - Server address (default: 127.0.0.1:9999)
+//! - `--duration SEC` - Test duration in seconds (default: 60)
 
 use std::io::{self, Read};
 use std::net::TcpStream;
