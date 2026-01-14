@@ -5,8 +5,6 @@
 //! Note: This module provides connection utilities for the mio-based server.
 //! For production use, see src/bin/hermes_server.rs.
 
-#![allow(dead_code)] // Connection module is for future async implementation
-
 use std::io::{self, Read, Write};
 use std::net::TcpStream;
 

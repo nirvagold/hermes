@@ -6,8 +6,6 @@
 //! For production use, see src/bin/hermes_server.rs which uses
 //! a simpler synchronous approach for better Windows compatibility.
 
-#![allow(dead_code)] // Server module is for future async implementation
-
 use std::collections::HashMap;
 use std::io;
 use std::net::{SocketAddr, TcpListener};
