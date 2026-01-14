@@ -1,0 +1,90 @@
+version: '3.8'
+
+services:
+  # Optimized Hermes Server
+  hermes-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.optimized
+    container_name: hermes-server-opt
+    hostname: hermes-server
+    # Privileged mode for kernel tuning
+    privileged: true
+    ports:
+      - "9999:9999"
+    volumes:
+      - ./hermes_data:/app/data
+    environment:
+      - RUST_LOG=info
+    networks:
+      - hermes-net
+    # Performance optimizations
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    # CPU pinning (isolate cores 0-1 for server)
+    cpuset: "0,1"
+    cpu_shares: 2048
+    mem_limit: 2g
+    memswap_limit: 2g
+    # Real-time priority (requires host support)
+    # security_opt:
+    #   - seccomp:unconfined
+    command: /app/hermes_server --bind 0.0.0.0:9999
+
+  # Optimized Subscriber
+  hermes-subscriber:
+    build:
+      context: .
+      dockerfile: Dockerfile.optimized
+    container_name: hermes-subscriber-opt
+    hostname: hermes-subscriber
+    depends_on:
+      - hermes-server
+    environment:
+      - RUST_LOG=info
+    networks:
+      - hermes-net
+    # CPU pinning (core 2 for subscriber)
+    cpuset: "2"
+    cpu_shares: 1024
+    mem_limit: 1g
+    command: >
+      sh -c "sleep 8 && /app/hermes_subscriber --host hermes-server:9999 --duration 60"
+
+  # Optimized Injector
+  hermes-injector:
+    build:
+      context: .
+      dockerfile: Dockerfile.optimized
+    container_name: hermes-injector-opt
+    hostname: hermes-injector
+    depends_on:
+      - hermes-server
+      - hermes-subscriber
+    environment:
+      - RUST_LOG=info
+    networks:
+      - hermes-net
+    # CPU pinning (core 3 for injector)
+    cpuset: "3"
+    cpu_shares: 1024
+    mem_limit: 1g
+    command: >
+      sh -c "sleep 15 && /app/battle_test --host hermes-server:9999 --tokens 1000 --rate 200"
+    profiles:
+      - test
+
+networks:
+  hermes-net:
+    driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: 9000
+      com.docker.network.bridge.name: hermes0
+
+volumes:
+  hermes-data:

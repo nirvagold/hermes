@@ -15,3 +15,6 @@ hermes_data.dat
 # OS
 .DS_Store
 Thumbs.db
+
+# Docker
+hermes_data/

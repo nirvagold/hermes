@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  # Hermes Server
+  hermes-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hermes-server
+    hostname: hermes-server
+    ports:
+      - "9999:9999"
+    volumes:
+      - ./hermes_data:/app/data
+    environment:
+      - RUST_LOG=info
+    networks:
+      - hermes-net
+    # Performance optimizations
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    # CPU pinning for better performance (optional)
+    # cpuset: "0,1"
+    # mem_limit: 2g
+    command: /app/hermes_server --bind 0.0.0.0:9999
+
+  # Hermes Subscriber (for testing)
+  hermes-subscriber:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hermes-subscriber
+    hostname: hermes-subscriber
+    depends_on:
+      - hermes-server
+    environment:
+      - RUST_LOG=info
+    networks:
+      - hermes-net
+    command: >
+      sh -c "sleep 8 && /app/hermes_subscriber --host hermes-server:9999 --duration 60"
+
+  # Battle Test Injector (for load testing)
+  hermes-injector:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hermes-injector
+    hostname: hermes-injector
+    depends_on:
+      - hermes-server
+      - hermes-subscriber
+    environment:
+      - RUST_LOG=info
+    networks:
+      - hermes-net
+    command: >
+      sh -c "sleep 15 && /app/battle_test --host hermes-server:9999 --tokens 1000 --rate 200"
+    profiles:
+      - test
+
+networks:
+  hermes-net:
+    driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: 9000
+
+volumes:
+  hermes-data:

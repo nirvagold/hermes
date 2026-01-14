@@ -1,9 +1,14 @@
-//! Hermes Server Binary - FIXED VERSION
+//! Hermes Server Binary - OPTIMIZED VERSION
 //!
 //! Ultra Low-Latency Message Broker Server dengan:
 //! - Proper Pub/Sub broadcast logic
 //! - TCP_NODELAY enabled
-//! - Minimal sleep untuk low latency
+//! - Batch atomic updates (reduces contention)
+//! - Inline hot path functions
+//! - Pre-allocated buffers
+//! - Busy-poll for minimum latency
+//!
+//! Target: P99 < 50μs
 //!
 //! Usage:
 //!
@@ -16,6 +21,9 @@ use std::io::{self, Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
+
+#[cfg(unix)]
+use std::os::unix::io::AsRawFd;
 
 use hermes::core::MmapStorage;
 use hermes::protocol::{Decoder, MessageType, HEADER_SIZE};
@@ -154,6 +162,7 @@ impl ClientHandler {
     }
 
     /// Try to read data from socket (non-blocking)
+    #[inline(always)]
     fn try_read(&mut self) -> io::Result<usize> {
         if self.read_pos >= self.read_buffer.len() {
             // Buffer full - should not happen with proper consumption
@@ -177,7 +186,7 @@ impl ClientHandler {
         storage: &mut MmapStorage,
         stats: &ServerStats,
     ) -> Vec<(usize, Vec<u8>)> {
-        let mut broadcasts = Vec::new();
+        let mut broadcasts = Vec::with_capacity(16); // Pre-allocate for typical batch
 
         if self.read_pos < HEADER_SIZE {
             return broadcasts;
@@ -185,6 +194,8 @@ impl ClientHandler {
 
         let mut decoder = Decoder::new(&self.read_buffer[..self.read_pos]);
         let mut consumed = 0;
+        let mut msg_count = 0u64;
+        let mut bytes_count = 0u64;
 
         while let Some((header, payload)) = decoder.next() {
             let msg_size = HEADER_SIZE + payload.len();
@@ -196,10 +207,8 @@ impl ClientHandler {
 
             consumed = msg_end;
 
-            stats.messages_received.fetch_add(1, Ordering::Relaxed);
-            stats
-                .bytes_received
-                .fetch_add(msg_size as u64, Ordering::Relaxed);
+            msg_count += 1;
+            bytes_count += msg_size as u64;
             self.messages_received += 1;
 
             match MessageType::from_u8(header.msg_type) {
@@ -226,6 +235,12 @@ impl ClientHandler {
             }
         }
 
+        // Batch update stats (reduces atomic contention)
+        if msg_count > 0 {
+            stats.messages_received.fetch_add(msg_count, Ordering::Relaxed);
+            stats.bytes_received.fetch_add(bytes_count, Ordering::Relaxed);
+        }
+
         // Shift remaining data to front of buffer
         if consumed > 0 {
             if consumed < self.read_pos {
@@ -240,6 +255,7 @@ impl ClientHandler {
     }
 
     /// Send data to client (with buffering for WouldBlock)
+    #[inline(always)]
     fn send(&mut self, data: &[u8]) -> io::Result<bool> {
         // First try to flush any pending data
         self.flush_pending()?;
@@ -270,6 +286,7 @@ impl ClientHandler {
     }
 
     /// Flush pending write buffer
+    #[inline(always)]
     fn flush_pending(&mut self) -> io::Result<()> {
         if self.write_buffer.is_empty() {
             return Ok(());
@@ -408,6 +425,12 @@ fn run_server(config: ServerConfig) -> io::Result<()> {
         }
 
         // === PHASE 3: Broadcast to ALL OTHER clients ===
+        // Optimize: batch stats updates to reduce atomic contention
+        let mut broadcast_count = 0u64;
+        let mut bytes_sent_count = 0u64;
+        let mut dropped_count = 0u64;
+        let mut error_count = 0u64;
+
         for (_sender_id, _msg_size, msg_data) in &all_broadcasts {
             for (&client_id, client) in clients.iter_mut() {
                 // Skip sender - don't echo back
@@ -418,19 +441,29 @@ fn run_server(config: ServerConfig) -> io::Result<()> {
                 // Send to this client
                 match client.send(msg_data) {
                     Ok(true) => {
-                        stats.messages_broadcast.fetch_add(1, Ordering::Relaxed);
-                        stats
-                            .bytes_sent
-                            .fetch_add(msg_data.len() as u64, Ordering::Relaxed);
+                        broadcast_count += 1;
+                        bytes_sent_count += msg_data.len() as u64;
                     }
                     Ok(false) => {
-                        stats.messages_dropped.fetch_add(1, Ordering::Relaxed);
+                        dropped_count += 1;
                     }
                     Err(_) => {
-                        stats.broadcast_errors.fetch_add(1, Ordering::Relaxed);
+                        error_count += 1;
                     }
                 }
             }
+        }
+
+        // Batch update stats (reduces atomic contention)
+        if broadcast_count > 0 {
+            stats.messages_broadcast.fetch_add(broadcast_count, Ordering::Relaxed);
+            stats.bytes_sent.fetch_add(bytes_sent_count, Ordering::Relaxed);
+        }
+        if dropped_count > 0 {
+            stats.messages_dropped.fetch_add(dropped_count, Ordering::Relaxed);
+        }
+        if error_count > 0 {
+            stats.broadcast_errors.fetch_add(error_count, Ordering::Relaxed);
         }
 
         // === PHASE 4: Flush pending writes ===
@@ -461,12 +494,9 @@ fn run_server(config: ServerConfig) -> io::Result<()> {
         // Only yield briefly when completely idle
         if all_broadcasts.is_empty() && clients.is_empty() {
             // No clients, no work - sleep to save CPU
-            std::thread::sleep(Duration::from_micros(100));
-        } else if all_broadcasts.is_empty() {
-            // Clients connected but no messages - minimal yield
-            std::thread::yield_now();
+            std::thread::sleep(Duration::from_micros(50));
         }
-        // When processing messages: NO SLEEP - busy poll for minimum latency
+        // When processing messages or clients connected: NO SLEEP - busy poll for minimum latency
     }
 }
 

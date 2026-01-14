@@ -242,12 +242,12 @@ const TOKEN_ANALYSIS_SIZE: usize = std::mem::size_of::<TokenAnalysis>();
 
 impl TokenAnalysis {
     #[inline(always)]
-    unsafe fn from_bytes(data: &[u8]) -> Option<&Self> {
+    unsafe fn from_bytes(data: &[u8]) -> Option<&Self> { unsafe {
         if data.len() < TOKEN_ANALYSIS_SIZE {
             return None;
         }
         Some(&*(data.as_ptr() as *const Self))
-    }
+    }}
 }
 
 /// Subscriber configuration

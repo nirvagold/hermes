@@ -1,0 +1,53 @@
+# Optimized Dockerfile for Low-Latency Performance
+FROM rust:1.83-slim-bookworm AS builder
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+# Copy and build
+COPY Cargo.toml Cargo.lock ./
+COPY src ./src
+COPY benches ./benches
+COPY examples ./examples
+COPY tests ./tests
+
+# Build with maximum optimizations
+RUN RUSTFLAGS="-C target-cpu=native" \
+    cargo build --release --bins --examples
+
+# Runtime stage - optimized for low latency
+FROM debian:bookworm-slim
+
+# Install runtime dependencies + performance tools
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    procps \
+    iproute2 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy binaries
+COPY --from=builder /build/target/release/hermes_server /app/
+COPY --from=builder /build/target/release/hermes_subscriber /app/
+COPY --from=builder /build/target/release/examples/battle_test /app/
+
+# Copy tuning script
+COPY scripts/linux_tuning.sh /app/scripts/
+
+# Create data directory
+RUN mkdir -p /app/data
+
+# Apply kernel tuning at runtime (requires privileged mode)
+COPY scripts/docker_tune.sh /app/scripts/
+RUN chmod +x /app/scripts/docker_tune.sh
+
+EXPOSE 9999
+
+# Default command with tuning
+CMD ["/bin/sh", "-c", "/app/scripts/docker_tune.sh && /app/hermes_server --bind 0.0.0.0:9999"]
