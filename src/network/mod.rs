@@ -10,7 +10,9 @@
 //!
 //! Note: For production server, see src/bin/hermes_server.rs
 
+#[allow(dead_code)]
 mod connection;
+#[allow(dead_code)]
 mod server;
 
 // Re-exports for library users (mio-based implementation)
