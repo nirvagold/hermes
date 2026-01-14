@@ -35,6 +35,10 @@ path = "src/bin/hermes_subscriber.rs"
 name = "battle_test"
 path = "examples/battle_test.rs"
 
+[[example]]
+name = "benchmark_demo"
+path = "examples/benchmark_demo.rs"
+
 [[test]]
 name = "live_stress_test"
 path = "tests/live_stress_test.rs"

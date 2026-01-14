@@ -6,12 +6,8 @@
 //! - No-Allocation: Pre-allocated buffers
 //! - Binary Protocol: SBE-inspired flat encoding
 
-mod core;
-mod network;
-mod protocol;
-
-use crate::core::{MmapStorage, RingBuffer};
-use crate::protocol::{Decoder, Encoder, MessageType};
+use hermes::core::{MmapStorage, RingBuffer};
+use hermes::protocol::{Decoder, Encoder, MessageType};
 use std::time::Instant;
 
 fn main() {
